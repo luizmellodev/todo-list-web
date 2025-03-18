@@ -1,114 +1,113 @@
-"use client"
+"use client";
 
-import { motion } from "framer-motion"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Button } from "@/components/ui/button"
-import {
-  Trash2,
-  Circle,
-  Briefcase,
-  User,
-  ShoppingBag,
-  Heart,
-  BookOpen,
-  Home,
-  Plane,
-  DollarSign,
-  Music,
-  Smartphone,
-} from "lucide-react"
-import type { Todo } from "@/types/todo"
-import type { Category } from "@/types/category"
-import { Badge } from "@/components/ui/badge"
-import { useState } from "react"
-import { TodoService } from "@/services/todo-service"
-import { toast } from "@/components/ui/use-toast"
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Trash2, Edit2, Check, X } from "lucide-react";
+import type { Todo } from "@/types/todo";
+import type { Category } from "@/types/category";
+import { Badge } from "@/components/ui/badge";
+import { TodoService } from "@/services/todo-service";
+import { toast } from "@/components/ui/use-toast";
 
 interface TodoItemProps {
-  todo: Todo
-  category?: Category
-  onToggle?: (id: string) => void
-  onDelete?: (id: string) => void
+  todo: Todo;
+  category?: Category;
+  onToggle?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onEdit?: (id: string, content: string) => void;
 }
 
-export default function TodoItem({ todo, category, onToggle, onDelete }: TodoItemProps) {
-  const [isLoading, setIsLoading] = useState(false)
-
-  // Map category icons to Lucide components
-  const getIconComponent = (iconName: string | undefined) => {
-    switch (iconName) {
-      case "Briefcase":
-        return Briefcase
-      case "User":
-        return User
-      case "ShoppingBag":
-        return ShoppingBag
-      case "Heart":
-        return Heart
-      case "BookOpen":
-        return BookOpen
-      case "Home":
-        return Home
-      case "Plane":
-        return Plane
-      case "DollarSign":
-        return DollarSign
-      case "Music":
-        return Music
-      case "Smartphone":
-        return Smartphone
-      default:
-        return Circle
-    }
-  }
-
-  const IconComponent = getIconComponent(category?.icon)
+export default function TodoItem({
+  todo,
+  category,
+  onToggle,
+  onDelete,
+  onEdit,
+}: TodoItemProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState(todo.content);
 
   const handleToggle = async () => {
     try {
-      setIsLoading(true)
-
-      // Se tiver um handler externo, use-o
+      setIsLoading(true);
       if (onToggle) {
-        onToggle(todo.id)
-        return
+        onToggle(todo.id);
+      } else {
+        await TodoService.toggleTodoCompleted(todo.id);
       }
-
-      // Caso contrário, use o service diretamente
-      await TodoService.toggleTodoCompleted(todo.id)
     } catch (error) {
       toast({
         title: "Erro",
         description: "Não foi possível atualizar a tarefa",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
     try {
-      setIsLoading(true)
-
-      // Se tiver um handler externo, use-o
+      setIsLoading(true);
       if (onDelete) {
-        onDelete(todo.id)
-        return
+        onDelete(todo.id);
+      } else {
+        await TodoService.deleteTodo(todo.id);
       }
-
-      // Caso contrário, use o service diretamente
-      await TodoService.deleteTodo(todo.id)
     } catch (error) {
       toast({
         title: "Erro",
         description: "Não foi possível excluir a tarefa",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
+
+  const handleEdit = async () => {
+    if (editedContent.trim() === todo.content) {
+      setIsEditing(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      if (onEdit) {
+        onEdit(todo.id, editedContent);
+      } else {
+        await TodoService.updateTodo(todo.id, { content: editedContent });
+      }
+      setIsEditing(false);
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível editar a tarefa",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getCategoryColor = (categoryName: string) => {
+    const colors = [
+      "bg-red-100",
+      "bg-blue-100",
+      "bg-green-100",
+      "bg-yellow-100",
+      "bg-purple-100",
+      "bg-pink-100",
+      "bg-indigo-100",
+      "bg-gray-100",
+    ];
+    const index = categoryName.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
 
   return (
     <motion.div
@@ -124,26 +123,78 @@ export default function TodoItem({ todo, category, onToggle, onDelete }: TodoIte
           checked={todo.completed}
           onCheckedChange={handleToggle}
           className="border-blue-400 data-[state=checked]:bg-blue-600"
-          disabled={isLoading}
+          disabled={isLoading || isEditing}
         />
-        <span className={`${todo.completed ? "line-through text-blue-400" : "text-blue-900"} flex-1`}>{todo.text}</span>
+        {isEditing ? (
+          <Input
+            value={editedContent}
+            onChange={(e) => setEditedContent(e.target.value)}
+            className="flex-1"
+            autoFocus
+          />
+        ) : (
+          <span
+            className={`${
+              todo.completed ? "line-through text-blue-400" : "text-blue-900"
+            } flex-1`}
+          >
+            {todo.content}
+          </span>
+        )}
         {category && (
-          <Badge variant="outline" className={`${category.color} text-white`}>
-            <IconComponent className="h-3 w-3 mr-1" />
+          <Badge
+            variant="secondary"
+            className={`${getCategoryColor(category.name)} text-gray-800`}
+          >
             {category.name}
           </Badge>
         )}
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={handleDelete}
-        className="text-blue-700 hover:text-red-600 hover:bg-red-50"
-        disabled={isLoading}
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+      <div className="flex space-x-2">
+        {isEditing ? (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleEdit}
+              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+              disabled={isLoading}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsEditing(false)}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              disabled={isLoading}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsEditing(true)}
+              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              disabled={isLoading}
+            >
+              <Edit2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDelete}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              disabled={isLoading}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+      </div>
     </motion.div>
-  )
+  );
 }
-

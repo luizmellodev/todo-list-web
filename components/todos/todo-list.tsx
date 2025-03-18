@@ -1,119 +1,126 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { PlusCircle } from "lucide-react"
-import type { Todo } from "@/types/todo"
-import type { Category } from "@/types/category"
-import TodoItem from "./todo-item"
-import { TodoService } from "@/services/todo-service"
-import { toast } from "@/components/ui/use-toast"
-import LoadingSpinner from "@/components/ui/loading-spinner"
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { PlusCircle } from "lucide-react";
+import type { Todo, Category } from "@/services/todo-service";
+import TodoItem from "./todo-item";
+import { TodoService } from "@/services/todo-service";
+import { toast } from "@/components/ui/use-toast";
 
 interface TodoListProps {
-  categoryId?: string
-  categories: Category[]
+  todos: Todo[];
+  categories: Category[];
+  onTodosChange?: (todos: Todo[]) => void;
 }
 
-export default function TodoList({ categoryId, categories }: TodoListProps) {
-  const [todos, setTodos] = useState<Todo[]>([])
-  const [newTodo, setNewTodo] = useState("")
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+export default function TodoList({
+  todos,
+  categories,
+  onTodosChange,
+}: TodoListProps) {
+  const [newTodo, setNewTodo] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Carrega os todos
-  useEffect(() => {
-    const loadTodos = async () => {
-      setIsLoading(true)
-      try {
-        let data: Todo[]
-
-        if (categoryId) {
-          data = await TodoService.getTodosByCategory(categoryId)
-        } else {
-          data = await TodoService.getAllTodos()
-        }
-
-        setTodos(data)
-      } catch (error) {
-        toast({
-          title: "Erro",
-          description: "Não foi possível carregar as tarefas",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    loadTodos()
-  }, [categoryId])
-
-  // Adiciona um novo todo
   const handleAddTodo = async () => {
-    if (!newTodo.trim()) return
+    if (!newTodo.trim() || !selectedCategoryId) return;
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
       const newTodoItem = await TodoService.addTodo({
-        text: newTodo,
+        content: newTodo,
         completed: false,
-        categoryId: categoryId || categories[0].id,
-      })
+        category_id: selectedCategoryId,
+      });
 
-      setTodos([...todos, newTodoItem])
-      setNewTodo("")
+      const updatedTodos = [...todos, newTodoItem];
+      onTodosChange?.(updatedTodos);
+      setNewTodo("");
+      setSelectedCategoryId("");
 
       toast({
         title: "Tarefa adicionada",
         description: "Sua tarefa foi adicionada com sucesso",
-      })
+      });
     } catch (error) {
-      // Erro já tratado pelo service
+      toast({
+        title: "Erro",
+        description: "Não foi possível adicionar a tarefa",
+        variant: "destructive",
+      });
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
-  // Toggle todo completed
   const handleToggleTodo = async (id: string) => {
     try {
-      const updatedTodo = await TodoService.toggleTodoCompleted(id)
-
-      setTodos(todos.map((todo) => (todo.id === id ? updatedTodo : todo)))
+      const updatedTodo = await TodoService.toggleTodoCompleted(id);
+      const updatedTodos = todos.map((todo) =>
+        todo.id === id ? updatedTodo : todo
+      );
+      onTodosChange?.(updatedTodos);
     } catch (error) {
-      // Erro já tratado pelo service
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar a tarefa",
+        variant: "destructive",
+      });
     }
-  }
+  };
 
-  // Delete todo
   const handleDeleteTodo = async (id: string) => {
     try {
-      const success = await TodoService.deleteTodo(id)
+      const success = await TodoService.deleteTodo(id);
 
       if (success) {
-        setTodos(todos.filter((todo) => todo.id !== id))
+        const updatedTodos = todos.filter((todo) => todo.id !== id);
+        onTodosChange?.(updatedTodos);
 
         toast({
           title: "Tarefa excluída",
           description: "Sua tarefa foi excluída com sucesso",
-        })
+        });
       }
     } catch (error) {
-      // Erro já tratado pelo service
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir a tarefa",
+        variant: "destructive",
+      });
     }
-  }
+  };
 
-  // Encontra a categoria de um todo
-  const getCategoryForTodo = (todo: Todo) => {
-    return categories.find((cat) => cat.id === todo.categoryId)
-  }
+  const handleEditTodo = async (id: string, content: string) => {
+    try {
+      const updatedTodo = await TodoService.updateTodo(id, { content });
+      const updatedTodos = todos.map((todo) =>
+        todo.id === id ? { ...todo, content } : todo
+      );
+      onTodosChange?.(updatedTodos);
 
-  if (isLoading) {
-    return <LoadingSpinner />
-  }
+      toast({
+        title: "Tarefa atualizada",
+        description: "Sua tarefa foi atualizada com sucesso",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar a tarefa",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -122,11 +129,28 @@ export default function TodoList({ categoryId, categories }: TodoListProps) {
           placeholder="Adicionar nova tarefa..."
           value={newTodo}
           onChange={(e) => setNewTodo(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAddTodo()}
           className="border-blue-200 focus-visible:ring-blue-500"
           disabled={isSubmitting}
         />
-        <Button onClick={handleAddTodo} disabled={isSubmitting || !newTodo.trim()}>
+        <Select
+          value={selectedCategoryId}
+          onValueChange={setSelectedCategoryId}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Selecione a categoria" />
+          </SelectTrigger>
+          <SelectContent>
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {category.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          onClick={handleAddTodo}
+          disabled={isSubmitting || !newTodo.trim() || !selectedCategoryId}
+        >
           <PlusCircle className="h-5 w-5 mr-1" />
           <span>Adicionar</span>
         </Button>
@@ -134,7 +158,9 @@ export default function TodoList({ categoryId, categories }: TodoListProps) {
 
       <AnimatePresence>
         {todos.length === 0 ? (
-          <div className="text-center py-8 text-blue-500">Nenhuma tarefa encontrada. Adicione uma nova!</div>
+          <div className="text-center py-8 text-blue-500">
+            Nenhuma tarefa encontrada. Adicione uma nova!
+          </div>
         ) : (
           <motion.div
             className="space-y-3"
@@ -160,9 +186,10 @@ export default function TodoList({ categoryId, categories }: TodoListProps) {
               >
                 <TodoItem
                   todo={todo}
-                  category={getCategoryForTodo(todo)}
+                  category={categories.find((c) => c.id === todo.category_id)}
                   onToggle={handleToggleTodo}
                   onDelete={handleDeleteTodo}
+                  onEdit={handleEditTodo}
                 />
               </motion.div>
             ))}
@@ -170,6 +197,5 @@ export default function TodoList({ categoryId, categories }: TodoListProps) {
         )}
       </AnimatePresence>
     </div>
-  )
+  );
 }
-

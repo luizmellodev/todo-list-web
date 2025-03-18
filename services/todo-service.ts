@@ -1,121 +1,188 @@
 import { apiCall, handleApiError } from "./api"
-import type { Todo } from "@/types/todo"
+import { v4 as uuidv4 } from "uuid"
 
-// Dados iniciais para simulação
-let todos: Todo[] = [
-  { id: "1", text: "Preparar apresentação", completed: false, categoryId: "work" },
-  { id: "2", text: "Responder emails", completed: true, categoryId: "work" },
-  { id: "3", text: "Reunião com cliente", completed: false, categoryId: "work" },
-  { id: "4", text: "Comprar leite", completed: false, categoryId: "shopping" },
-  { id: "5", text: "Comprar frutas", completed: true, categoryId: "shopping" },
-  { id: "6", text: "Agendar médico", completed: false, categoryId: "health" },
-  { id: "7", text: "Correr 5km", completed: false, categoryId: "health" },
-  { id: "8", text: "Ler livro", completed: false, categoryId: "education" },
-  { id: "9", text: "Estudar React", completed: true, categoryId: "education" },
-  { id: "10", text: "Ligar para mãe", completed: false, categoryId: "personal" },
-  { id: "11", text: "Organizar fotos", completed: false, categoryId: "personal" },
-]
+export interface Todo {
+  id: string
+  content: string
+  completed: boolean
+  category_id: string
+  username: string
+  created_at?: string
+}
+
+export interface Category {
+  id: string
+  name: string
+  todos: Todo[]
+}
+
+export interface DeleteTodosRequest {
+  ids: string[]
+}
+
+export interface UpdateTodo {
+  content?: string
+  completed?: boolean
+  category_id?: string
+}
+
+// Cache local para armazenar as categorias com todos
+let categoriesCache: Category[] = [];
 
 export const TodoService = {
+  // Obter categorias com todos (novo método BFF)
+  async fetchCategoriesWithTodos(): Promise<Category[]> {
+    try {
+      const categories = await apiCall<Category[]>("/categories_with_todos", "GET");
+      categoriesCache = categories; // Atualiza o cache
+      return categories;
+    } catch (error) {
+      handleApiError(error, "Falha ao carregar categorias e tarefas");
+      return [];
+    }
+  },
+
   // Obter todos os todos
   async getAllTodos(): Promise<Todo[]> {
     try {
-      // Simula uma chamada de API
-      await apiCall<void>("/todos", "GET")
-
-      return [...todos]
+      if (categoriesCache.length === 0) {
+        await this.fetchCategoriesWithTodos();
+      }
+      return categoriesCache.flatMap(category => category.todos);
     } catch (error) {
-      handleApiError(error, "Falha ao carregar tarefas")
-      return []
+      handleApiError(error, "Falha ao carregar tarefas");
+      return [];
     }
   },
+  
 
   // Obter todos por categoria
   async getTodosByCategory(categoryId: string): Promise<Todo[]> {
     try {
-      // Simula uma chamada de API
-      await apiCall<void>(`/todos?categoryId=${categoryId}`, "GET")
-
-      return todos.filter((todo) => todo.categoryId === categoryId)
+      if (categoriesCache.length === 0) {
+        await this.fetchCategoriesWithTodos();
+      }
+      const category = categoriesCache.find(c => c.id === categoryId);
+      return category?.todos || [];
     } catch (error) {
-      handleApiError(error, "Falha ao carregar tarefas da categoria")
-      return []
+      handleApiError(error, "Falha ao carregar tarefas da categoria");
+      return [];
+    }
+  },
+
+    // Dentro do TodoService
+  async addCategory(category: Omit<Category, "id" | "todos">): Promise<Category> {
+    try {
+      const newCategory = await apiCall<Category>("/categories", "POST", category);
+      this.clearCache(); // Limpa o cache para forçar uma nova busca
+      return newCategory;
+    } catch (error) {
+      console.error("Erro ao adicionar categoria:", error);
+      throw error;
     }
   },
 
   // Adicionar um novo todo
-  async addTodo(todo: Omit<Todo, "id">): Promise<Todo> {
+  async addTodo(todo: Omit<Todo, "id" | "created_at" | "username">): Promise<Todo> {
     try {
-      const newTodo: Todo = {
+      const newTodo: Partial<Todo> = {
         ...todo,
-        id: Date.now().toString(),
+        id: uuidv4(),
+        created_at: new Date().toISOString().split("T")[0],
+      };
+
+      const createdTodo = await apiCall<Todo>("/todos", "POST", newTodo);
+      
+      // Atualiza o cache local
+      const categoryIndex = categoriesCache.findIndex(c => c.id === todo.category_id);
+      if (categoryIndex !== -1) {
+        categoriesCache[categoryIndex].todos.push(createdTodo);
       }
 
-      // Simula uma chamada de API
-      await apiCall<Todo>("/todos", "POST", newTodo)
-
-      // Atualiza o estado local
-      todos = [...todos, newTodo]
-
-      return newTodo
+      return createdTodo;
     } catch (error) {
-      handleApiError(error, "Falha ao adicionar tarefa")
-      throw error
+      handleApiError(error, "Falha ao adicionar tarefa");
+      throw error;
     }
   },
 
   // Atualizar um todo
-  async updateTodo(id: string, updates: Partial<Todo>): Promise<Todo> {
+  async updateTodo(id: string, updates: Partial<UpdateTodo>): Promise<Todo> {
     try {
-      // Simula uma chamada de API
-      await apiCall<void>(`/todos/${id}`, "PATCH", updates)
+      const updatedTodo = await apiCall<Todo>(`/todos/${id}`, "PUT", updates);
 
-      // Atualiza o estado local
-      todos = todos.map((todo) => (todo.id === id ? { ...todo, ...updates } : todo))
+      // Atualiza o cache local
+      categoriesCache = categoriesCache.map(category => ({
+        ...category,
+        todos: category.todos.map(todo => 
+          todo.id === id ? { ...todo, ...updatedTodo } : todo
+        )
+      }));
 
-      const updatedTodo = todos.find((todo) => todo.id === id)
-
-      if (!updatedTodo) {
-        throw new Error("Tarefa não encontrada")
-      }
-
-      return updatedTodo
+      return updatedTodo;
     } catch (error) {
-      handleApiError(error, "Falha ao atualizar tarefa")
-      throw error
+      handleApiError(error, "Falha ao atualizar tarefa");
+      throw error;
     }
   },
 
   // Excluir um todo
   async deleteTodo(id: string): Promise<boolean> {
     try {
-      // Simula uma chamada de API
-      await apiCall<void>(`/todos/${id}`, "DELETE")
+      const deleteRequest: DeleteTodosRequest = { ids: [id] };
+      await apiCall<void>("/todos/", "DELETE", deleteRequest);
 
-      // Atualiza o estado local
-      todos = todos.filter((todo) => todo.id !== id)
+      // Atualiza o cache local
+      categoriesCache = categoriesCache.map(category => ({
+        ...category,
+        todos: category.todos.filter(todo => todo.id !== id)
+      }));
 
-      return true
+      return true;
     } catch (error) {
-      handleApiError(error, "Falha ao excluir tarefa")
-      return false
+      handleApiError(error, "Falha ao excluir tarefa");
+      return false;
+    }
+  },
+
+  // Excluir múltiplos todos
+  async deleteTodos(ids: string[]): Promise<boolean> {
+    try {
+      const deleteRequest: DeleteTodosRequest = { ids };
+      await apiCall<void>("/todos/", "DELETE", deleteRequest);
+
+      // Atualiza o cache local
+      categoriesCache = categoriesCache.map(category => ({
+        ...category,
+        todos: category.todos.filter(todo => !ids.includes(todo.id))
+      }));
+
+      return true;
+    } catch (error) {
+      handleApiError(error, "Falha ao excluir tarefas");
+      return false;
     }
   },
 
   // Marcar todo como concluído/não concluído
   async toggleTodoCompleted(id: string): Promise<Todo> {
     try {
-      const todo = todos.find((t) => t.id === id)
+      const todos = await this.getAllTodos();
+      const todo = todos.find(t => t.id === id);
 
       if (!todo) {
-        throw new Error("Tarefa não encontrada")
+        throw new Error("Tarefa não encontrada");
       }
 
-      return await this.updateTodo(id, { completed: !todo.completed })
+      return await this.updateTodo(id, { completed: !todo.completed });
     } catch (error) {
-      handleApiError(error, "Falha ao atualizar status da tarefa")
-      throw error
+      handleApiError(error, "Falha ao atualizar status da tarefa");
+      throw error;
     }
   },
-}
 
+  // Método auxiliar para limpar o cache
+  clearCache() {
+    categoriesCache = [];
+  },
+};

@@ -1,17 +1,12 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
-import type { Category } from "@/types/category"
-import { CategoryService } from "@/services/category-service"
-import { toast } from "@/components/ui/use-toast"
-import TodoList from "@/components/todos/todo-list"
-import LoadingSpinner from "@/components/ui/loading-spinner"
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
+  ArrowLeft,
   Circle,
   Briefcase,
   User,
@@ -23,89 +18,92 @@ import {
   DollarSign,
   Music,
   Smartphone,
-} from "lucide-react"
+} from "lucide-react";
+import type { Category } from "@/types/category";
+import { CategoryService } from "@/services/category-service";
+import { toast } from "@/components/ui/use-toast";
+import TodoList from "@/components/todos/todo-list";
+import LoadingSpinner from "@/components/ui/loading-spinner";
 
 interface CategoryDetailProps {
-  categoryId: string
+  categoryId: string;
 }
 
 export default function CategoryDetail({ categoryId }: CategoryDetailProps) {
-  const router = useRouter()
-  const [category, setCategory] = useState<Category | null>(null)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter();
+  const [category, setCategory] = useState<Category | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
-      setIsLoading(true)
+      setIsLoading(true);
       try {
         const [categoryData, categoriesData] = await Promise.all([
           CategoryService.getCategoryById(categoryId),
-          CategoryService.getAllCategories(),
-        ])
+          CategoryService.getAllCategories(localStorage.getItem("token")),
+        ]);
 
         if (!categoryData) {
           toast({
             title: "Erro",
             description: "Categoria não encontrada",
             variant: "destructive",
-          })
-          router.push("/todos")
-          return
+          });
+          router.push("/todos");
+          return;
         }
 
-        setCategory(categoryData)
-        setCategories(categoriesData)
+        setCategory(categoryData);
+        setCategories(categoriesData);
       } catch (error) {
         toast({
           title: "Erro",
           description: "Não foi possível carregar os dados",
           variant: "destructive",
-        })
+        });
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    loadData()
-  }, [categoryId, router])
+    loadData();
+  }, [categoryId, router]);
 
   const goBack = () => {
-    router.push("/todos")
-  }
+    router.push("/todos");
+  };
 
   // Map category icons to Lucide components
   const getIconComponent = (iconName: string | undefined) => {
     switch (iconName) {
       case "Briefcase":
-        return Briefcase
+        return Briefcase;
       case "User":
-        return User
+        return User;
       case "ShoppingBag":
-        return ShoppingBag
+        return ShoppingBag;
       case "Heart":
-        return Heart
+        return Heart;
       case "BookOpen":
-        return BookOpen
+        return BookOpen;
       case "Home":
-        return Home
+        return Home;
       case "Plane":
-        return Plane
+        return Plane;
       case "DollarSign":
-        return DollarSign
+        return DollarSign;
       case "Music":
-        return Music
+        return Music;
       case "Smartphone":
-        return Smartphone
+        return Smartphone;
       default:
-        return Circle
+        return Circle;
     }
-  }
-
-  const IconComponent = category ? getIconComponent(category.icon) : Circle
+  };
 
   if (isLoading) {
-    return <LoadingSpinner />
+    return <LoadingSpinner />;
   }
 
   return (
@@ -124,20 +122,25 @@ export default function CategoryDetail({ categoryId }: CategoryDetailProps) {
               </Button>
               {category && (
                 <>
-                  <div className={`p-2 rounded-full ${category.color} bg-opacity-20`}>
-                    <IconComponent className={`h-5 w-5 ${category.color} text-white`} />
+                  <div
+                    className={`p-2 rounded-full ${category.color} bg-opacity-20`}
+                  >
+                    <div className={`h-5 w-5 ${category.color} text-white`} />
                   </div>
-                  <CardTitle className="text-2xl font-bold text-blue-700">{category.name}</CardTitle>
+                  <CardTitle className="text-2xl font-bold text-blue-700">
+                    {category.name}
+                  </CardTitle>
                 </>
               )}
             </div>
           </CardHeader>
           <CardContent>
-            {category && categories.length > 0 && <TodoList categoryId={category.id} categories={categories} />}
+            {category && categories.length > 0 && (
+              <TodoList categoryId={category.id} categories={categories} />
+            )}
           </CardContent>
         </Card>
       </motion.div>
     </AnimatePresence>
-  )
+  );
 }
-

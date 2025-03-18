@@ -1,9 +1,11 @@
-import { apiCall, handleApiError } from "./api"
+import { apiCall, API_BASE_URL } from "./api"
 
 export interface User {
   id: string
   username: string
+  name?: string
   email?: string
+  disabled?: boolean
 }
 
 export interface LoginCredentials {
@@ -11,92 +13,101 @@ export interface LoginCredentials {
   password: string
 }
 
-export interface RegisterData extends LoginCredentials {
-  confirmPassword?: string
-  email?: string
+export interface RegisterData {
+  username: string
+  password: string
+  name: string
 }
 
-// Simula um usuário logado
+export interface TokenResponse {
+  access_token: string
+  token_type: string
+}
+
 let currentUser: User | null = null
 
 export const AuthService = {
-  // Login
   async login(credentials: LoginCredentials): Promise<User | null> {
     try {
-      // Remove confirmPassword antes de enviar para a API
-      const { username, password } = credentials
+      const formData = new URLSearchParams();
+      formData.append("username", credentials.username);
+      formData.append("password", credentials.password);
 
-      // Simula uma chamada de API
-      const user = await apiCall<User>("/auth/login", "POST", {
-        username,
-        password,
-      })
+      const response = await fetch(`${API_BASE_URL}/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formData,
+        credentials: 'include',
+      });
 
-      // Armazena o usuário logado
-      currentUser = {
-        id: "user-1",
-        username: username,
-        email: `${username}@example.com`,
+      if (!response.ok) {
+        throw new Error("Falha na autenticação");
       }
 
-      // Em um app real, aqui armazenaria o token JWT em localStorage ou cookies
-      localStorage.setItem("auth_token", "fake-jwt-token")
+      const tokenData: TokenResponse = await response.json();
 
-      return currentUser
+      if (!tokenData?.access_token) {
+        throw new Error("Token inválido recebido do servidor");
+      }
+
+      localStorage.setItem("auth_token", tokenData.access_token);
+
+      const userData = await this.fetchCurrentUser();
+      if (userData) {
+        currentUser = userData;
+        return userData;
+      }
+
+      throw new Error("Não foi possível obter dados do usuário");
     } catch (error) {
-      return handleApiError(error, "Falha ao fazer login")
+      console.error("Erro no login:", error);
+      localStorage.removeItem("auth_token");
+      currentUser = null;
+      return null;
     }
   },
 
-  // Registro
   async register(data: RegisterData): Promise<User | null> {
     try {
-      // Remove confirmPassword antes de enviar para a API
-      const { username, password, email } = data
-
-      // Simula uma chamada de API
-      await apiCall<User>("/auth/register", "POST", {
-        username,
-        password,
-        email,
-      })
-
-      return {
-        id: "user-1",
-        username,
-        email,
-      }
+      const response = await apiCall<User>("/register", "POST", data, true);
+      return await this.login({
+        username: data.username,
+        password: data.password,
+      });
     } catch (error) {
-      return handleApiError(error, "Falha ao registrar usuário")
+      console.error("Erro no registro:", error);
+      return null;
     }
   },
 
-  // Logout
-  async logout(): Promise<boolean> {
-    try {
-      // Simula uma chamada de API
-      await apiCall<void>("/auth/logout", "POST")
-
-      // Limpa o usuário e token
-      currentUser = null
-      localStorage.removeItem("auth_token")
-
-      return true
-    } catch (error) {
-      handleApiError(error, "Falha ao fazer logout")
-      return false
-    }
+  logout(): void {
+    localStorage.removeItem("auth_token");
+    currentUser = null;
+    window.location.href = '/';
   },
 
-  // Verifica se o usuário está autenticado
   isAuthenticated(): boolean {
-    return !!localStorage.getItem("auth_token")
+    return !!localStorage.getItem("auth_token");
   },
 
-  // Obtém o usuário atual
+  async fetchCurrentUser(): Promise<User | null> {
+    try {
+      if (!this.isAuthenticated()) {
+        return null;
+      }
+
+      const user = await apiCall<User>("/users/me", "GET");
+      currentUser = user;
+      return user;
+    } catch (error) {
+      console.error("Erro ao obter dados do usuário:", error);
+      return null;
+    }
+  },
+
   getCurrentUser(): User | null {
-    // Em um app real, decodificaria o token JWT ou faria uma chamada de API
-    return currentUser
+    return currentUser;
   },
-}
-
+};

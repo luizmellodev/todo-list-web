@@ -1,85 +1,151 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { motion } from "framer-motion"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LogOut } from "lucide-react"
-import type { Category } from "@/types/category"
-import type { Todo } from "@/types/todo"
-import { CategoryService } from "@/services/category-service"
-import { TodoService } from "@/services/todo-service"
-import { AuthService } from "@/services/auth-service"
-import { toast } from "@/components/ui/use-toast"
-import TodoList from "@/components/todos/todo-list"
-import CategoryList from "@/components/categories/category-list"
-import CategoryFilter from "@/components/todos/category-filter"
-import LoadingSpinner from "@/components/ui/loading-spinner"
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LogOut } from "lucide-react";
+import { Category, Todo, TodoService } from "@/services/todo-service";
+import { AuthService } from "@/services/auth-service";
+import { toast } from "@/components/ui/use-toast";
+import TodoList from "@/components/todos/todo-list";
+import CategoryList from "@/components/categories/category-list";
+import CategoryFilter from "@/components/todos/category-filter";
+import LoadingSpinner from "@/components/ui/loading-spinner";
+import { useAuth } from "@/components/auth-provider";
 
 export default function TodoDashboard() {
-  const router = useRouter()
-  const [categories, setCategories] = useState<Category[]>([])
-  const [todos, setTodos] = useState<Todo[]>([])
-  const [selectedCategory, setSelectedCategory] = useState<string>("all")
-  const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter();
+  const { logout } = useAuth();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Carrega categorias e todos
   useEffect(() => {
     const loadData = async () => {
-      setIsLoading(true)
-      try {
-        const [categoriesData, todosData] = await Promise.all([
-          CategoryService.getAllCategories(),
-          TodoService.getAllTodos(),
-        ])
+      setIsLoading(true);
+      setError(null);
 
-        setCategories(categoriesData)
-        setTodos(todosData)
-      } catch (error) {
+      try {
+        if (!AuthService.isAuthenticated()) {
+          router.push("/");
+          return;
+        }
+
+        const categoriesWithTodos =
+          await TodoService.fetchCategoriesWithTodos();
+        setCategories(categoriesWithTodos);
+      } catch (error: any) {
+        console.error("Erro ao carregar dados:", error);
+        setError(error.message || "Erro ao carregar dados");
+
         toast({
           title: "Erro",
-          description: "Não foi possível carregar os dados",
+          description:
+            "Não foi possível carregar os dados. Por favor, tente novamente.",
           variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
+        });
 
-    loadData()
-  }, [])
+        if (
+          error.message &&
+          (error.message.includes("Não autenticado") ||
+            error.message.includes("Sessão expirada") ||
+            error.message.includes("401"))
+        ) {
+          router.push("/");
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [router]);
+
+  const handleTodosChange = (updatedTodos: Todo[]) => {
+    setCategories((prevCategories) =>
+      prevCategories.map((category) => ({
+        ...category,
+        todos: category.todos
+          .map((todo) => {
+            const updatedTodo = updatedTodos.find((t) => t.id === todo.id);
+            return updatedTodo || todo;
+          })
+          .filter((todo) => updatedTodos.some((t) => t.id === todo.id)),
+      }))
+    );
+  };
 
   const handleLogout = async () => {
-    const success = await AuthService.logout()
-    if (success) {
-      router.push("/")
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Erro ao fazer logout:", error);
     }
-  }
+  };
 
-  const handleCategoryChange = (categoryId: string) => {
-    setSelectedCategory(categoryId)
-  }
+  const handleCategoryChange = (updatedCate: string) => {
+    setSelectedCategory(updatedCate);
+  };
+  const handleCategoriesChange = (updatedCategories: Category[]) => {
+    setCategories(updatedCategories);
+  };
 
   if (isLoading) {
     return (
       <Card className="bg-white shadow-md border-blue-100">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-2xl font-bold text-blue-700">Carregando...</CardTitle>
+          <CardTitle className="text-2xl font-bold text-blue-700">
+            Carregando...
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <LoadingSpinner />
         </CardContent>
       </Card>
-    )
+    );
   }
 
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+  if (error) {
+    return (
       <Card className="bg-white shadow-md border-blue-100">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-2xl font-bold text-blue-700">Minhas Tarefas</CardTitle>
+          <CardTitle className="text-2xl font-bold text-red-700">
+            Erro
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-4 text-red-500">{error}</div>
+          <div className="flex justify-center mt-4">
+            <Button onClick={() => window.location.reload()}>
+              Tentar novamente
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const filteredTodos =
+    selectedCategory === "all"
+      ? categories.flatMap((category) => category.todos)
+      : categories.find((category) => category.id === selectedCategory)
+          ?.todos || [];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      <Card className="bg-white shadow-md border-blue-100">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-2xl font-bold text-blue-700">
+            Minhas Tarefas
+          </CardTitle>
           <Button variant="ghost" size="icon" onClick={handleLogout}>
             <LogOut className="h-5 w-5 text-blue-600" />
           </Button>
@@ -100,19 +166,22 @@ export default function TodoDashboard() {
                 />
 
                 <TodoList
-                  categoryId={selectedCategory === "all" ? undefined : selectedCategory}
+                  todos={filteredTodos}
                   categories={categories}
+                  onTodosChange={handleTodosChange}
                 />
               </div>
             </TabsContent>
 
             <TabsContent value="categories">
-              <CategoryList />
+              <CategoryList
+                categories={categories}
+                onCategoriesChange={handleCategoriesChange}
+              />
             </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
     </motion.div>
-  )
+  );
 }
-

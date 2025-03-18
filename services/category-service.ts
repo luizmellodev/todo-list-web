@@ -1,42 +1,14 @@
 import { apiCall, handleApiError } from "./api"
-import type { Category } from "@/types/category"
+import type { Category, UpdateCategory } from "@/types/category"
 import { CategoryVisualService } from "./category-visual-service"
-
-// Dados iniciais para simulação (apenas os dados que viriam do backend)
-let categories: Category[] = [
-  {
-    id: "work",
-    name: "Trabalho",
-  },
-  {
-    id: "personal",
-    name: "Pessoal",
-  },
-  {
-    id: "shopping",
-    name: "Compras",
-  },
-  {
-    id: "health",
-    name: "Saúde",
-  },
-  {
-    id: "education",
-    name: "Educação",
-  },
-]
-
-// Exportamos as cores e ícones do serviço visual
-export const { getAvailableColors, getAvailableIcons } = CategoryVisualService
-export const availableColors = CategoryVisualService.getAvailableColors()
-export const availableIcons = CategoryVisualService.getAvailableIcons()
+import { v4 as uuidv4 } from "uuid"
 
 export const CategoryService = {
   // Obter todas as categorias
-  async getAllCategories(): Promise<Category[]> {
+  async getAllCategories(token: string | null): Promise<Category[]> {
     try {
-      // Simula uma chamada de API
-      await apiCall<void>("/categories", "GET")
+      // Faz a requisição para obter todas as categorias
+      const categories = await apiCall<Category[]>("/categories", "GET")
 
       // Adiciona as informações visuais às categorias
       return categories.map((category) => {
@@ -56,22 +28,15 @@ export const CategoryService = {
   // Obter uma categoria por ID
   async getCategoryById(id: string): Promise<Category | null> {
     try {
-      // Simula uma chamada de API
-      await apiCall<void>(`/categories/${id}`, "GET")
-
+      // Obtém todas as categorias e filtra pelo ID
+      const categories = await this.getAllCategories(localStorage.getItem("token"))
       const category = categories.find((cat) => cat.id === id)
 
       if (!category) {
         throw new Error("Categoria não encontrada")
       }
 
-      // Adiciona as informações visuais à categoria
-      const visual = CategoryVisualService.getCategoryVisual(category.id)
-      return {
-        ...category,
-        color: visual.color,
-        icon: visual.icon,
-      }
+      return category
     } catch (error) {
       handleApiError(error, "Falha ao carregar categoria")
       return null
@@ -79,39 +44,30 @@ export const CategoryService = {
   },
 
   // Adicionar uma nova categoria
-  async addCategory(category: Omit<Category, "id">): Promise<Category> {
+  async addCategory(category: Omit<Category, "id" | "created_at" | "user_id">): Promise<Category> {
     try {
-      // Gera um ID baseado no nome (slug)
-      const id = category.name
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^\w\s]/g, "")
-        .replace(/\s+/g, "-")
-
       // Separa os dados visuais dos dados que vão para o backend
       const { color, icon, ...backendData } = category
 
-      const newCategory: Category = {
+      // Prepara a categoria para envio
+      const newCategory: Partial<Category> = {
         ...backendData,
-        id,
+        id: uuidv4(),
+        created_at: new Date().toISOString().split("T")[0], // Formato YYYY-MM-DD
       }
 
-      // Simula uma chamada de API (enviando apenas os dados relevantes para o backend)
-      await apiCall<Category>("/categories", "POST", newCategory)
-
-      // Atualiza o estado local
-      categories = [...categories, newCategory]
+      // Faz a requisição para adicionar a categoria
+      const createdCategory = await apiCall<Category>("/categories", "POST", newCategory)
 
       // Salva as informações visuais localmente
       if (color && icon) {
-        CategoryVisualService.setCategoryVisual(id, color, icon)
+        CategoryVisualService.setCategoryVisual(createdCategory.id, color, icon)
       }
 
       // Retorna a categoria completa com as informações visuais
-      const visual = CategoryVisualService.getCategoryVisual(id)
+      const visual = CategoryVisualService.getCategoryVisual(createdCategory.id)
       return {
-        ...newCategory,
+        ...createdCategory,
         color: visual.color,
         icon: visual.icon,
       }
@@ -127,21 +83,18 @@ export const CategoryService = {
       // Separa os dados visuais dos dados que vão para o backend
       const { color, icon, ...backendUpdates } = updates
 
-      // Simula uma chamada de API (enviando apenas os dados relevantes para o backend)
-      await apiCall<void>(`/categories/${id}`, "PATCH", backendUpdates)
+      // Cria um objeto UpdateCategory com apenas os campos permitidos
+      const updateData: UpdateCategory = {}
+      if (backendUpdates.name) {
+        updateData.name = backendUpdates.name
+      }
 
-      // Atualiza o estado local
-      categories = categories.map((category) => (category.id === id ? { ...category, ...backendUpdates } : category))
+      // Faz a requisição para atualizar a categoria
+      const updatedCategory = await apiCall<Category>(`/categories/${id}`, "PUT", updateData)
 
       // Atualiza as informações visuais localmente
       if (color && icon) {
         CategoryVisualService.setCategoryVisual(id, color, icon)
-      }
-
-      const updatedCategory = categories.find((category) => category.id === id)
-
-      if (!updatedCategory) {
-        throw new Error("Categoria não encontrada")
       }
 
       // Retorna a categoria completa com as informações visuais
@@ -160,12 +113,8 @@ export const CategoryService = {
   // Excluir uma categoria
   async deleteCategory(id: string): Promise<boolean> {
     try {
-      // Simula uma chamada de API
-      await apiCall<void>(`/categories/${id}`, "DELETE")
-
-      // Atualiza o estado local
-      categories = categories.filter((category) => category.id !== id)
-
+      // Faz a requisição para excluir a categoria
+      await apiCall<any>(`/categories/${id}`, "DELETE")
       return true
     } catch (error) {
       handleApiError(error, "Falha ao excluir categoria")
