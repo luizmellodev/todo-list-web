@@ -1,6 +1,6 @@
 import { toast } from "@/components/ui/use-toast"
 
-export const API_BASE_URL = "http://localhost:8000"
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL!
 
 interface ApiError extends Error {
   status?: number;
@@ -23,120 +23,144 @@ export async function apiCall<T>(
     const url = `${API_BASE_URL}${endpoint}`
     console.log(`📡 Requisição ${method} para ${url}`)
 
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-    }
-
-    if (!isPublic) {
-      const token = localStorage.getItem("auth_token")
-      if (!token) {
-        throw Object.assign(new Error("Não autenticado"), { status: 401 })
-      }
-      headers["Authorization"] = `Bearer ${token}`
-    }
-
-    const requestOptions: RequestInit = {
-      method,
-      headers,
-      credentials: 'include',
-      mode: 'cors',
-    }
-
-    if (data && method !== "GET") {
-      requestOptions.body = JSON.stringify(data)
-      console.log("📦 Dados enviados:", data)
-    }
+    const headers = createHeaders(isPublic);
+    const requestOptions = createRequestOptions(method, headers, data);
 
     const response = await fetch(url, requestOptions)
     console.log(`📥 Resposta recebida: ${response.status} ${response.statusText}`)
 
-    const apiResponse: ApiResponse<T> = {
-      status: response.status
-    }
-
-    if (!response.ok) {
-      const error: ApiError = new Error(response.statusText)
-      error.status = response.status
-
-      try {
-        const errorData = await response.json()
-        error.data = errorData
-        error.message = errorData.detail || errorData.message || response.statusText
-      } catch (e) {
-        console.warn("⚠️ Não foi possível extrair detalhes do erro:", e)
-      }
-
-      if (response.status === 401) {
-        localStorage.removeItem("auth_token")
-        if (window.location.pathname !== "/") {
-          window.location.href = "/"
-        }
-        error.message = "Sessão expirada. Por favor, faça login novamente."
-      }
-
-      throw error
-    }
-
-    if (response.status === 204 || response.headers.get("content-length") === "0") {
-      return {} as T
-    }
-
-    const contentType = response.headers.get("content-type")
-
-    if (!contentType) {
-      console.log("ℹ️ Resposta sem content-type, retornando objeto vazio")
-      return {} as T
-    }
-
-    if (contentType.includes("application/json")) {
-      try {
-        const data = await response.json()
-        console.log("📦 Dados recebidos:", data)
-        return data as T
-      } catch (e) {
-        console.error("❌ Erro ao parsear JSON:", e)
-        return {} as T
-      }
-    }
-
-    try {
-      const text = await response.text()
-      if (!text) return {} as T
-
-      try {
-        return JSON.parse(text) as T
-      } catch {
-        return { text } as unknown as T
-      }
-    } catch (e) {
-      console.error("❌ Erro ao processar resposta:", e)
-      return {} as T
-    }
+    return await handleResponse<T>(response);
 
   } catch (error: any) {
-    if (error.message === "Não autenticado") {
-      if (window.location.pathname !== "/") {
-        window.location.href = "/"
-      }
+    return handleError<T>(error);
+  }
+}
+
+function createHeaders(isPublic: boolean): HeadersInit {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+  }
+
+  if (!isPublic) {
+    const token = localStorage.getItem("auth_token")
+    if (!token) {
+      throw Object.assign(new Error("Não autenticado"), { status: 401 })
+    }
+    headers["Authorization"] = `Bearer ${token}`
+  }
+
+  return headers;
+}
+
+function createRequestOptions(method: string, headers: HeadersInit, data?: any): RequestInit {
+  const requestOptions: RequestInit = {
+    method,
+    headers,
+    credentials: 'include',
+    mode: 'cors',
+  }
+
+  if (data && method !== "GET") {
+    requestOptions.body = JSON.stringify(data)
+    console.log("📦 Dados enviados:", data)
+  }
+
+  return requestOptions;
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
+  const apiResponse: ApiResponse<T> = {
+    status: response.status
+  }
+
+  if (!response.ok) {
+    const error = await createApiError(response);
+    throw error;
+  }
+
+  if (response.status === 204 || response.headers.get("content-length") === "0") {
+    return {} as T
+  }
+
+  const contentType = response.headers.get("content-type")
+
+  if (!contentType) {
+    console.log("ℹ️ Resposta sem content-type, retornando objeto vazio")
+    return {} as T
+  }
+
+  if (contentType.includes("application/json")) {
+    try {
+      const data = await response.json()
+      console.log("📦 Dados recebidos:", data)
+      return data as T
+    } catch (e) {
+      console.error("❌ Erro ao parsear JSON:", e)
       return {} as T
     }
-
-    if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
-      throw Object.assign(
-        new Error("Falha na conexão com o servidor. Verifique sua conexão com a internet."),
-        { status: 0 }
-      )
-    }
-
-    console.error("❌ Erro na API:", {
-      message: error.message,
-      status: error.status,
-      data: error.data
-    })
-    
-    throw error
   }
+
+  try {
+    const text = await response.text()
+    if (!text) return {} as T
+
+    try {
+      return JSON.parse(text) as T
+    } catch {
+      return { text } as unknown as T
+    }
+  } catch (e) {
+    console.error("❌ Erro ao processar resposta:", e)
+    return {} as T
+  }
+}
+
+async function createApiError(response: Response): Promise<ApiError> {
+  const error: ApiError = new Error(response.statusText)
+  error.status = response.status
+
+  try {
+    const errorData = await response.json()
+    error.data = errorData
+    error.message = errorData.detail || errorData.message || response.statusText
+  } catch (e) {
+    console.warn("⚠️ Não foi possível extrair detalhes do erro:", e)
+  }
+
+  if (response.status === 401) {
+    localStorage.removeItem("auth_token")
+    if (window.location.pathname !== "/") {
+      window.location.href = "/"
+    }
+    error.message = "Sessão expirada. Por favor, faça login novamente."
+  }
+
+  return error;
+}
+
+function handleError<T>(error: any): T {
+  if (error.message === "Não autenticado") {
+    if (window.location.pathname !== "/") {
+      window.location.href = "/"
+    }
+    return {} as T
+  }
+
+  if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
+    throw Object.assign(
+      new Error("Falha na conexão com o servidor. Verifique sua conexão com a internet."),
+      { status: 0 }
+    )
+  }
+
+  console.error("❌ Erro na API:", {
+    message: error.message,
+    status: error.status,
+    data: error.data
+  })
+  
+  throw error
 }
 
 export function handleApiError(error: any, customMessage?: string) {
