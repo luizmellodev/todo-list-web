@@ -32,7 +32,7 @@ export const AuthService = {
       const formData = new URLSearchParams();
       formData.append("username", credentials.username);
       formData.append("password", credentials.password);
-
+  
       const response = await fetch(`${API_BASE_URL}/token`, {
         method: "POST",
         headers: {
@@ -41,32 +41,42 @@ export const AuthService = {
         body: formData,
         credentials: 'include',
       });
-
+  
       if (!response.ok) {
         throw new Error("Falha na autenticação");
       }
-
+  
       const tokenData: TokenResponse = await response.json();
-
+  
       if (!tokenData?.access_token) {
         throw new Error("Token inválido recebido do servidor");
       }
-
-      localStorage.setItem("auth_token", tokenData.access_token);
-
+  
+      this.setToken(tokenData.access_token);
+  
       const userData = await this.fetchCurrentUser();
       if (userData) {
         currentUser = userData;
         return userData;
       }
-
+  
       throw new Error("Não foi possível obter dados do usuário");
     } catch (error) {
       console.error("Erro no login:", error);
-      localStorage.removeItem("auth_token");
-      currentUser = null;
+      this.removeToken();
       return null;
     }
+  },
+  
+  setToken(token: string) {
+    localStorage.setItem("auth_token", token);
+    document.cookie = `auth_token=${token}; path=/; max-age=86400; SameSite=Strict; Secure`;
+  },
+  
+  removeToken() {
+    localStorage.removeItem("auth_token");
+    document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict; Secure";
+    currentUser = null;
   },
 
   async register(data: RegisterData): Promise<User | null> {
@@ -82,15 +92,24 @@ export const AuthService = {
     }
   },
 
-  logout(): void {
-    localStorage.removeItem("auth_token");
-    currentUser = null;
-    window.location.href = '/';
+  async logout(): Promise<void> {
+    try {
+      await apiCall("/logout", "POST");
+    } catch (error) {
+      console.error("Erro ao fazer logout na API:", error);
+    } finally {
+      this.removeToken();
+      currentUser = null;
+      window.location.href = '/';
+    }
   },
 
   isAuthenticated(): boolean {
-    console.log("Tá autenticado? ", !!localStorage.getItem("auth_token"));
-    return !!localStorage.getItem("auth_token");
+    const token = localStorage.getItem("auth_token");
+    const cookieToken = this.getCookie("auth_token");
+    console.log("Autenticação - Token localStorage:", !!token);
+    console.log("Autenticação - Token cookie:", !!cookieToken);
+    return !!(token && cookieToken && token === cookieToken);
   },
 
   async fetchCurrentUser(): Promise<User | null> {
@@ -104,6 +123,7 @@ export const AuthService = {
       return user;
     } catch (error) {
       console.error("Erro ao obter dados do usuário:", error);
+      this.removeToken();
       return null;
     }
   },
@@ -111,4 +131,11 @@ export const AuthService = {
   getCurrentUser(): User | null {
     return currentUser;
   },
+
+  getCookie(name: string): string | null {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+    return null;
+  }
 };

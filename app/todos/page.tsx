@@ -13,27 +13,31 @@ export default function TodosPage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        console.log("Verificando autenticação...");
         if (!AuthService.isAuthenticated()) {
-          console.error("Usuário não autenticado");
+          console.log("Não autenticado, redirecionando...");
           router.replace("/");
           return;
         }
 
+        console.log("Autenticado, buscando usuário...");
         const user = await AuthService.fetchCurrentUser();
         if (!user) {
+          console.log("Usuário não encontrado, fazendo logout...");
           AuthService.logout();
           return;
         }
 
+        console.log("Usuário encontrado, carregando página...");
         setIsLoading(false);
       } catch (error) {
-        console.error("Erro ao verificar autenticação:", error);
+        console.error("Erro na verificação:", error);
         router.replace("/");
       }
     };
 
     checkAuth();
-  }, [router]);
+  }, []);
 
   if (isLoading) {
     return (

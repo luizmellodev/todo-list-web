@@ -13,6 +13,7 @@ import { AuthService } from "@/services/auth-service";
 
 export default function LoginForm() {
   const router = useRouter();
+  console.log("router detected?", !!router);
   const [isLoading, setIsLoading] = useState(false);
   const [loginData, setLoginData] = useState({ username: "", password: "" });
   const [registerData, setRegisterData] = useState({
@@ -41,11 +42,24 @@ export default function LoginForm() {
 
       if (user) {
         console.log("Login bem-sucedido");
-        console.log("Redirecionando para suas tarefas...");
-        setTimeout(() => {
-          router.replace("/todos");
-        }, 1000);
-        console.log("Deveria ter sido redirecionado.");
+
+        // Tentativa 1: Redirecionamento direto
+        router.push("/todos");
+        console.log("deveria ter sido redirecionado");
+
+        // Tentativa 2: Redirecionamento com window.location
+        // window.location.href = "/todos";
+
+        // Tentativa 3: Redirecionamento com replace
+        // router.replace("/todos");
+
+        // Tentativa 4: Redirecionamento com async/await
+        // await router.push("/todos");
+
+        // Tentativa 5: Redirecionamento com pequeno delay
+        // setTimeout(() => {
+        //   router.push("/todos");
+        // }, 100);
       }
     } catch (error: any) {
       handleError(error, "Erro no login");
