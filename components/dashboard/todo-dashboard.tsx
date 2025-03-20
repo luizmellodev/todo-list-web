@@ -31,6 +31,7 @@ export default function TodoDashboard() {
 
       try {
         if (!AuthService.isAuthenticated()) {
+          console.error("Usuário não autenticado");
           router.push("/");
           return;
         }

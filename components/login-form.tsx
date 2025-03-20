@@ -41,9 +41,11 @@ export default function LoginForm() {
 
       if (user) {
         console.log("Login bem-sucedido");
+        console.log("Redirecionando para suas tarefas...");
         setTimeout(() => {
           router.push("/todos");
         }, 100);
+        console.log("Deveria ter sido redirecionado.");
       }
     } catch (error: any) {
       handleError(error, "Erro no login");

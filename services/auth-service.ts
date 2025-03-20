@@ -89,6 +89,7 @@ export const AuthService = {
   },
 
   isAuthenticated(): boolean {
+    console.log("Tá autenticado? ", !!localStorage.getItem("auth_token"));
     return !!localStorage.getItem("auth_token");
   },
 
