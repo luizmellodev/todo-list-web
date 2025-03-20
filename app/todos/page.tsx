@@ -14,6 +14,7 @@ export default function TodosPage() {
     const checkAuth = async () => {
       try {
         if (!AuthService.isAuthenticated()) {
+          console.error("Usuário não autenticado");
           router.replace("/");
           return;
         }
