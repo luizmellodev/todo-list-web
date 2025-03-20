@@ -41,11 +41,9 @@ export default function LoginForm() {
 
       if (user) {
         console.log("Login bem-sucedido");
-        toast({
-          title: "Login bem-sucedido",
-          description: "Redirecionando para suas tarefas...",
-        });
         router.push("/todos");
+        console.log("Redirecionando para suas tarefas...");
+        console.log("Deveria ter redireciondo..");
       }
     } catch (error: any) {
       handleError(error, "Erro no login");
