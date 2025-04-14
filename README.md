@@ -14,7 +14,7 @@ Este projeto foi desenvolvido com as seguintes tecnologias:
 - 🧠 Backend próprio para gerenciamento e sincronização de dados
 - 💻 Aplicação Web acessível diretamente pelo navegador
 - 🧾 TypeScript para garantir tipagem segura e melhor manutenção do código
-- 
+
 ## 🎯 Funcionalidades
 
 ✅ Criar, editar e excluir tarefas facilmente
