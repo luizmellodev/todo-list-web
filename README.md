@@ -1,45 +1,42 @@
 # Todo-list - WEB
 
-## 📌 Sobre o Projeto
+## 📌 About the Project
 
-Essa é a versão Web do aplicativo de **Todo-list**, onde é um aplicativo simples para iOS desenvolvido para ajudar você a gerenciar suas tarefas do dia a dia de forma rápida e eficiente. Com um design clean e funcionalidades poderosas, ele permite organizar suas pendências de maneira prática.
+This is the Web version of the **Todo-list** app, a simple application designed to help you manage your daily tasks quickly and efficiently. With a clean design and powerful features, it allows you to organize your to-dos in a practical way.
 
-## 🚀 Tecnologias Utilizadas
+## 🚀 Technologies
 
-Este projeto foi desenvolvido com as seguintes tecnologias:
+This project was developed with the following technologies:
 
-- 🍏 Shadcn/UI para uma interface moderna e fluida
-- ⚛️ React + Next.js para a estrutura da aplicação e renderização eficiente
-- 🔐 JWT com Bearer Tokens para autenticação segura
-- 🧠 Backend próprio para gerenciamento e sincronização de dados
-- 💻 Aplicação Web acessível diretamente pelo navegador
-- 🧾 TypeScript para garantir tipagem segura e melhor manutenção do código
+- 🍏 Shadcn/UI for a modern and fluid interface
+- ⚛️ React + Next.js for the app structure and efficient rendering
+- 🔐 JWT with Bearer Tokens for secure authentication
+- 🧠 Custom Backend for data management and synchronization
+- 💻 Web Application accessible directly through the browser
+- 🧾 TypeScript to ensure safe typing and better code maintenance
 
-## 🎯 Funcionalidades
+## 🎯 Features
 
-✅ Criar, editar e excluir tarefas facilmente
-✅ Organização eficiente com categorias e filtros
-✅ Autenticação segura com sistema de usuários
-✅ Sincronização automática entre dispositivos
-✅ Widget para acesso rápido às tarefas
+✅ Create, edit, and delete tasks easily  
+✅ Efficient organization with categories and filters  
+✅ Secure authentication with user system  
+✅ Automatic synchronization across devices  
+✅ Widget for quick task access
 
-## 🛠 Como Rodar o Projeto
+## 🛠 How to Run the Project
 
-1. Clone o repositório:
+1. Clone the repository:
    ```sh
    git clone https://github.com/luizmellodev/todo-list-web.git
    ```
-2. Abra o projeto e rode:
+2. Open the project and run:
    ```sh
    npm i
    npm run dev
    ```
 
-## 📜 Licença
-
-Este projeto está sob a licença MIT - veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+## 📜 License
+This project is licensed under the MIT License - see the LICENSE file for more details.
 
 ---
-
-Feito com ❤️ por [Luiz Mello](https://github.com/luizmellodev)
-
+Made with ❤️ by Luiz Mello
